@@ -1,0 +1,15 @@
+# Author : Sandeep S R
+# Helps in increasing the IP based on the input
+#Ex : Lets say my IP is 10.1.2.3 and i need 25th IP incremental for some reason , use below to accomplish the task
+#Simple powershell commands , one can change the number based on their need
+
+ $IP="10.1.2.3"
+$split=$IP.Split(".",4) | Select -Index 3
+[int]$last=$split
+$ipnew=($ip.split(".",4)|select -index 0,1,2) -join "."
+$add=$lastpart+25
+$ip25th=$IPnew +"." +$add
+Write-Output "$ip25th"
+
+
+10.1.2.25
