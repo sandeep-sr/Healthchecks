@@ -1,0 +1,68 @@
+<#
+   .Synopsis
+    Enabling SSH & Execute esxcli commands
+   
+   .Description
+   By using this script we can check the SSH service status and if ssh service is stopped we will start it
+   As well how to execute the esxcli commands
+#>
+
+Get-Module -ListAvailable *vm*|Import-Module
+
+#Enter vCenter FQDN & credentials
+$vCName= Read-Host  "Please enter the vCenter FQDN"
+Write-Host -ForegroundColor DarkYellow "==============================================================================="
+
+write-host "Please input your domain credentials"
+$cred  = Get-Credential
+Write-Host -ForegroundColor DarkYellow "==============================================================================="
+
+connect-viserver $vCName -Credential $cred -ErrorAction Stop
+Write-Host -ForegroundColor DarkYellow "==============================================================================="
+
+$clustername= Read-Host "Ente the cluster name"
+Write-Host -ForegroundColor DarkYellow "==============================================================================="
+
+#Get the host details in the cluster
+$VMhosts= (Get-Cluster|Get-VMHost).name
+
+foreach ( $VMhost in $VMhosts ) {
+
+Write-Host "Checking SSH status on $VMhost"
+
+#Check whether SSH enabled
+$SSHstatus = (Get-VMHost $VMhost | Get-VMHostService | ?{$_.key -eq "TSM-SSH"}).Running
+
+if ($SSHstatus -eq "False" ){
+  try{
+      Write-Host -ForegroundColor DarkYellow "SSH is stopped in the $VMhost and starting it now ..."
+      $SSHstart = Get-VMHost $VMhost | Get-VMHostService | ?{$_.key -eq "TSM-SSH"}|Start-VMHostService -Confirm:$false -ErrorAction Stop
+     }
+
+  catch{
+        Write-Host -ForegroundColor RED "Unable to start SSH service on $VMhost"
+       }
+
+if ( $SSHstart.Running -eq "True" ){ 
+
+  Write-Host -ForegroundColor DarkGreen "SSH service started in $VMhost" 
+  Write-Host -ForegroundColor DarkYellow "==============================================================================="
+
+  $esxcli = Get-EsxCli -VMHost $VMhost
+  
+  #print storage nmap values
+  write-host -ForegroundColor Cyan "Existing nmp satp vlaues "
+  $Beforeset = $esxcli.storage.nmp.satp.list()
+  write-output $Beforeset
+  Write-Host -ForegroundColor DarkYellow "==============================================================================="
+
+  write-host -ForegroundColor Cyan "After changing nmp satp vlaues "
+  $nmpset = $esxcli.storage.nmp.satp.set($null,"VMW_PSP_RR","VMW_SATP_ALUA")
+  write-output $nmpset
+  $Afterset = $esxcli.storage.nmp.satp.list()
+  write-output $Afterset
+  Write-Host -ForegroundColor DarkYellow "==============================================================================="
+}
+else{ Write-Host -ForegroundColor RED "SSH service not started in $VMhost" }
+}
+} 
