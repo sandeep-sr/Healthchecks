@@ -1,0 +1,115 @@
+<#
+   . Synopsis
+    VSAN Health check.
+    Health checks get the SSD & NonSsd's failed information and Uuid of failed disk
+    When a Disk failed it will be shown as NonSSD disk error
+#>
+
+Get-Module -ListAvailable VM* | Import-Module
+$cred=Get-Credential 
+Connect-VIServer vcenter -Credential $cred -ErrorAction stop
+$redColor = "#FF0000"
+$greenColor = "#B2D0B4"
+$whiteColor = "#FFFFFF"
+$orangeColor = "#FBB917"
+$Path = "C:\temp\";
+$Name = "VSAN Health Check Report_$(get-date -format ddMMyyyyhhmmss).html";
+$i = 0;
+$todaydate = get-date -Format "MM-dd-yyyy hh:mm"
+$capacityreport = $Path + $Name
+
+$header = "
+		<html>
+		<head>
+		<meta http-equiv='Content-Type' content='text/html'>
+		<title>VSAN Health</title>
+		<STYLE TYPE='text/css'>
+		<!--
+		td {
+			font-family: candara;
+			font-size: 14px;
+			border-top: 1px solid #999999;
+			border-right: 1px solid #999999;
+			border-bottom: 1px solid #999999;
+			border-left: 1px solid #999999;
+			padding-top: 0px;
+			padding-right: 0px;
+			padding-bottom: 0px;
+			padding-left: 0px;
+		   }
+		body {
+			margin-left: 5px;
+			margin-top: 5px;
+			margin-right: 0px;
+			margin-bottom: 10px;
+			table {
+			border: thin solid #000000;
+		     }
+		-->
+		</style>
+		</head>
+		<body>
+		<table width='100%'>
+		<tr bgcolor='#FAFCFC'>
+		<td colspan='7' height='25' align='center'>
+		<font face='candara' color='#3bb8e7' size='4'><strong>VSAN Health Report_$todaydate</strong></font>
+		</td>
+		</tr>
+		</table>
+"
+ Add-Content $capacityreport $header
+ $tableHeader = "
+ <table width='100%'><tbody>
+      	<tr bgcolor=#FAFCFC>
+        <td width='auto' align='center'><strong>Cluster</strong></td>
+        <td width='auto' align='center'><strong>VSAN Status</strong></td>
+        <td width='auto' align='center'><strong>Disk Errors</strong></td>
+        <td width='auto' align='center'><strong>Failed Disks</strong></td>
+	</tr>
+"
+Add-Content $capacityreport $tableHeader
+
+
+$clusters=(Get-View -viewtype clustercomputeresource).Name
+foreach($cluster in $clusters){
+ $color0=$whiteColor
+ $nssd=((Get-Cluster $cluster|Get-VsanDiskGroup).extensiondata).NonSsd
+ $ssd=((Get-Cluster $cluster|Get-VsanDiskGroup).extensiondata).Ssd
+ if($ssd.OperationalState -match "error" -or $nssd.OperationalState -match "error")
+ {
+   $ssderrorcount=($ssd|?{$_.OperationalState -match "error"}).count
+   $ssddiskid=($ssd|?{$_.OperationalState -match "error"}).DisplayName
+   $nonssderrorcount=($nssd|?{$_.OperationalState -match "error"}).count
+   $nonssddiskid=($nssd|?{$_.OperationalState -match "error"}).DisplayName
+   $clusterstatus="UnHealthy"
+   $color0 = $redColor
+     $dataRow = "
+		<tr>
+                <td width='auto' align='center'><strong>$Cluster</strong></td>
+                <td width='auto' align='center'><strong>$clusterstatus</strong></td>
+                <td width='auto' bgcolor=`'$color0` 'align='center'>SSD=$ssderrorcount & NonSsd=$nonssderrorcount </td>
+	              <td width='auto' bgcolor=`'$color0` 'align='center'>$ssddiskid - $nonssddiskid</td>
+                </tr>
+              "
+ Add-Content $capacityreport $dataRow;
+ 
+ }
+ $i++
+}
+ if($i -gt 0)
+ {
+    $smtpServer = "mailserver DNS Name"
+  	$smtp = New-Object Net.Mail.SmtpClient($smtpServer)
+	  $msg = New-Object Net.Mail.MailMessage
+	  $msg.To.Add("Mail ID 1")
+    #$msg.To.Add("Mail ID 2")
+    $msg.From = "from which mail id we have to send alerts"
+	  $msg.Subject = "VSAN Health Report_Cluster_$(get-date -format ddMMyyyy)"
+    $msg.IsBodyHTML = $true
+    $msg.Body = get-content $capacityreport
+	  $smtp.Send($msg)
+    $body = ""
+}
+
+Disconnect-viserver * -Confirm:$false
+ 
