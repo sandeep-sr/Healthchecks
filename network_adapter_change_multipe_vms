@@ -1,0 +1,67 @@
+<#
+  .Author
+   Sandeep S R
+
+   .Synopsis
+    A simple script to Change the network adapter of a VM
+    
+  .Note
+    - Copy the vm names into a text file named "servers" and place it into C:\temp before executing the script
+    - in $cl , provide the cluster name Ex : "cluster-25"
+    - specify the adapter name you would like to change to based on the request
+    - Change the Vcenter details in Connect-Viserver 
+  
+  .How to run Script
+    - before running the script please set the transcript info to get the log information
+      use start-transcript   Ex: Start-Transcript -Path C:\temp\log.txt
+      so that logs will be saved in c:\temp\log file
+  
+  .Requirement
+    - Powercli 6.5 
+
+  .Where can we use
+    - If customer asks to change the network adapter for many VM's
+
+  .Date
+  02/20/2018
+#>
+
+Get-Module -listavailable *vm*|Import-Module
+
+$cred=Get-Credential
+# Enter the cluser name
+$cl = "cluster-25"
+Connect-VIServer vcenter01 -Credential $cred -ErrorAction Stop
+
+$newadapter = "network02"
+
+$servers = Get-Content c:\temp\servers.txt
+
+foreach($server in $servers)
+{
+
+    $clu = (get-vm $server | Get-Cluster).name
+
+    if($clu -eq $cl)
+    {
+      $currentnetwork = (Get-cluster $clu|Get-vmhost|get-vm $server|Get-NetworkAdapter).Networkname
+
+      Write-Output " $server - Current Network - $currentnetwork"
+
+      Get-cluster $clu|Get-vmhost|get-vm $server|Get-NetworkAdapter|Set-NetworkAdapter -NetworkName $newadapter -Confirm:$false
+
+      $newadp= (Get-cluster $clu|Get-vmhost|get-vm $server|Get-NetworkAdapter).Networkname
+
+      Write-Output "$server - Changed adapter - $newadp"
+
+      Write-Output "--------------------------------------------------------------------------------------------------------------"
+    }
+
+    else
+
+    {
+     Write-Output "$server is not in $clu"
+    }
+
+}
+﻿
